@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Yahtzee - P2P Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --primary: #00ff41;
+            --secondary: #ff00ff;
+            --accent: #ffff00;
+            --text: #ffffff;
+            --border: #555;
+            --fixed-score: #00ff41;
+            --preview-score: #888;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text);
+            font-family: 'Press Start 2P', cursive;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 10px;
+            overflow: hidden;
+        }
+
+        /* --- Screens --- */
+        .screen {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .hidden { display: none !important; }
+
+        input {
+            background: #000;
+            border: 4px solid #fff;
+            color: var(--primary);
+            padding: 10px;
+            font-family: 'Press Start 2P';
+            margin: 10px;
+            text-align: center;
+        }
+
+        .btn {
+            background: #333;
+            border: 4px solid #fff;
+            color: #fff;
+            padding: 12px 20px;
+            margin: 8px;
+            cursor: pointer;
+            font-family: 'Press Start 2P';
+            font-size: 10px;
+        }
+        .btn:hover { background: var(--primary); color: #000; }
+
+        /* --- Game Layout --- */
+        #game-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* --- Scoreboard (Table Style) --- */
+        #sidebar {
+            background: #252525;
+            border-right: 4px solid var(--border);
+            padding: 5px;
+            overflow-x: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        th, td {
+            border: 2px solid var(--border);
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 8px;
+        }
+
+        .category-name { text-align: left; font-size: 7px; color: #aaa; }
+        .score-cell { cursor: pointer; height: 15px; }
+        .score-fixed { color: var(--primary); }
+        .score-preview { color: var(--preview-score); opacity: 0; }
+        .score-cell:hover .score-preview { opacity: 1; }
+        .active-col { background: #3a3a3a; }
+
+        /* --- Main Play Area --- */
+        #main-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+        }
+
+        #dice-container { display: flex; gap: 10px; }
+        .die {
+            width: 50px; height: 50px;
+            background: #fff; color: #000;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 20px; border: 4px solid #888;
+            cursor: pointer;
+        }
+        .die.kept { background: var(--secondary); color: #fff; transform: translateY(-5px); }
+        .rolling { animation: flash 0.1s infinite; }
+        @keyframes flash { 0% { opacity: 1; } 50% { opacity: 0.2; } }
+
+        /* --- Victory Screen --- */
+        #victory-screen { background: rgba(0,0,0,0.9); z-index: 200; }
+        .winner-name { color: var(--accent); font-size: 24px; margin: 20px 0; }
+
+        .status-msg { color: var(--primary); height: 20px; }
+    </style>
+</head>
+<body>
+
+    <div id="setup-screen" class="screen">
+        <h1 style="color:var(--primary)">PIXEL YAHTZEE</h1>
+        <p>ENTER YOUR NAME:</p>
+        <input type="text" id="user-name" maxlength="8" placeholder="PLAYER">
+        <div id="mode-select">
+            <button class="btn" onclick="initMode('local')">LOCAL MULTI</button>
+            <button class="btn" onclick="initMode('online')">ONLINE P2P</button>
+        </div>
+    </div>
+
+    <div id="local-screen" class="screen hidden">
+        <h2>HOW MANY PLAYERS?</h2>
+        <div id="local-player-inputs"></div>
+        <button class="btn" onclick="startLocalGame()">START GAME</button>
+    </div>
+
+    <div id="online-screen" class="screen hidden">
+        <h2>YOUR ID: <span id="my-id" style="color:var(--secondary)">...</span></h2>
+        <p>WAITING FOR CONNECTION OR JOIN FRIENDS</p>
+        <input type="text" id="join-id" placeholder="FRIEND'S ID">
+        <button class="btn" onclick="connectToPeer()">JOIN GAME</button>
+    </div>
+
+    <div id="game-container" class="hidden">
+        <div id="sidebar">
+            <div style="font-size: 8px; color:var(--secondary)" id="turn-info">PLAYER'S TURN</div>
+            <table id="score-table">
+                <thead><tr id="table-head"><th>TYPE</th></tr></thead>
+                <tbody id="table-body"></tbody>
+            </table>
+            <div id="bonus-info" style="font-size:7px; margin-top:10px; line-height:1.5"></div>
+        </div>
+
+        <div id="main-area">
+            <div class="status-msg" id="status-msg">READY?</div>
+            <div id="dice-container">
+                <div class="die" id="die-0" onclick="toggleKeep(0)">?</div>
+                <div class="die" id="die-1" onclick="toggleKeep(1)">?</div>
+                <div class="die" id="die-2" onclick="toggleKeep(2)">?</div>
+                <div class="die" id="die-3" onclick="toggleKeep(3)">?</div>
+                <div class="die" id="die-4" onclick="toggleKeep(4)">?</div>
+            </div>
+            <button class="btn" id="roll-btn" onclick="rollDice()">ROLL (3 LEFT)</button>
+        </div>
+    </div>
+
+    <div id="victory-screen" class="screen hidden">
+        <h1 style="color:var(--primary)">GAME OVER</h1>
+        <div class="winner-name" id="winner-display">PLAYER 1 WINS!</div>
+        <div id="final-stats"></div>
+        <button class="btn" onclick="location.reload()">PLAY AGAIN</button>
+    </div>
+
+    <script>
+        // --- Categories ---
+        const categories = [
+            { id: '1s', name: 'ONES', calc: d => sumOf(d, 1) },
+            { id: '2s', name: 'TWOS', calc: d => sumOf(d, 2) },
+            { id: '3s', name: 'THREES', calc: d => sumOf(d, 3) },
+            { id: '4s', name: 'FOURS', calc: d => sumOf(d, 4) },
+            { id: '5s', name: 'FIVES', calc: d => sumOf(d, 5) },
+            { id: '6s', name: 'SIXES', calc: d => sumOf(d, 6) },
+            { id: '3k', name: '3-KIND', calc: d => isK(d,3)?sumA(d):0 },
+            { id: '4k', name: '4-KIND', calc: d => isK(d,4)?sumA(d):0 },
+            { id: 'fh', name: 'FULL-H', calc: d => isFH(d)?sumA(d):0, spec: 25 },
+            { id: 'ss', name: 'SM-STR', calc: d => isS(d,4)?15:0, spec: 30 },
+            { id: 'ls', name: 'LG-STR', calc: d => isS(d,5)?30:0, spec: 40 },
+            { id: 'ch', name: 'CHANCE', calc: d => sumA(d) },
+            { id: 'yz', name: 'YAHTZEE', calc: d => isK(d,5)?50:0 }
+        ];
+
+        let players = [];
+        let curIdx = 0;
+        let rolls = 3;
+        let dice = [1,1,1,1,1];
+        let kept = [false,false,false,false,false];
+        let rolling = false;
+        let myName = "";
+        let isOnline = false;
+        let peer, conn;
+
+        // --- Init Logic ---
+        function initMode(mode) {
+            myName = document.getElementById('user-name').value || "PLAYER";
+            document.getElementById('setup-screen').classList.add('hidden');
+            
+            if(mode === 'local') {
+                document.getElementById('local-screen').classList.remove('hidden');
+                setupLocalInputs(2);
+            } else {
+                document.getElementById('online-screen').classList.remove('hidden');
+                initOnline();
+            }
+        }
+
+        function setupLocalInputs(num) {
+            const container = document.getElementById('local-player-inputs');
+            container.innerHTML = `<p>NUMBER OF PLAYERS:</p>
+                <input type="number" id="p-count" value="${num}" min="1" max="4" onchange="setupLocalInputs(this.value)">`;
+            for(let i=1; i<=num; i++) {
+                container.innerHTML += `<input type="text" class="p-name" placeholder="NAME ${i}" value="${i==1?myName:'PLAYER '+i}">`;
+            }
+        }
+
+        function startLocalGame() {
+            const names = Array.from(document.querySelectorAll('.p-name')).map(i => i.value);
+            players = names.map((n, i) => ({ id: i, name: n, scores: {}, yzB: 0 }));
+            startGame();
+        }
+
+        function startGame() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+            document.getElementById('game-container').classList.remove('hidden');
+            renderTable();
+            updateUI();
+        }
+
+        // --- PeerJS ---
+        function initOnline() {
+            isOnline = true;
+            peer = new Peer();
+            peer.on('open', id => document.getElementById('my-id').innerText = id);
+            peer.on('connection', c => { conn = c; handleOnlineStart(); });
+        }
+        function connectToPeer() {
+            let tid = document.getElementById('join-id').value;
+            conn = peer.connect(tid);
+            handleOnlineStart();
+        }
+        function handleOnlineStart() {
+            conn.on('open', () => {
+                players = [{name: myName, scores: {}, yzB: 0}, {name: "REMOTE", scores: {}, yzB: 0}];
+                conn.on('data', data => { if(data.type==='SYNC') sync(data); });
+                startGame();
+            });
+        }
+        function send() { if(isOnline && conn) conn.send({type:'SYNC', p:players, cur:curIdx, r:rolls, d:dice, k:kept}); }
+        function sync(data) { players=data.p; curIdx=data.cur; rolls=data.r; dice=data.d; kept=data.k; updateUI(); }
+
+        // --- Core ---
+        function renderTable() {
+            const head = document.getElementById('table-head');
+            const body = document.getElementById('table-body');
+            head.innerHTML = '<th>TYPE</th>';
+            players.forEach(p => head.innerHTML += `<th>${p.name.substring(0,5)}</th>`);
+            
+            body.innerHTML = '';
+            categories.forEach(cat => {
+                let row = `<tr id="row-${cat.id}"><td class="category-name">${cat.name}</td>`;
+                players.forEach((p, i) => {
+                    row += `<td class="score-cell p${i}-col" onclick="pick('${cat.id}', ${i})">
+                        <span class="score-fixed"></span><span class="score-preview"></span>
+                    </td>`;
+                });
+                body.innerHTML += row + '</tr>';
+            });
+            body.innerHTML += `<tr style="border-top:4px solid #fff"><td class="category-name">TOTAL</td>` + 
+                players.map((_, i) => `<td id="total-${i}">0</td>`).join('') + `</tr>`;
+        }
+
+        function rollDice() {
+            if(rolls <= 0 || rolling) return;
+            rolling = true; rolls--;
+            document.querySelectorAll('.die').forEach((d,i) => { if(!kept[i]) d.classList.add('rolling'); });
+            setTimeout(() => {
+                dice = dice.map((v, i) => kept[i] ? v : Math.floor(Math.random()*6)+1);
+                document.querySelectorAll('.die').forEach(d => d.classList.remove('rolling'));
+                rolling = false; updateUI(); send();
+            }, 600);
+        }
+
+        function toggleKeep(i) { if(rolls<3 && !rolling) { kept[i] = !kept[i]; updateUI(); } }
+
+        function pick(catId, pIdx) {
+            if(pIdx !== curIdx || rolling || rolls === 3) return;
+            let p = players[curIdx];
+            if(p.scores[catId] !== undefined) return;
+
+            const cat = categories.find(c => c.id === catId);
+            let score = cat.calc(dice);
+
+            // Special Yahtzee Rules
+            if(isK(dice, 5) && p.scores['yz'] >= 50) {
+                p.yzB += 100;
+                if(cat.spec) score = cat.spec;
+            }
+
+            p.scores[catId] = score;
+            curIdx = (curIdx + 1) % players.length;
+            rolls = 3; kept = [false,false,false,false,false]; dice = [1,1,1,1,1];
+            updateUI(); send();
+            checkEnd();
+        }
+
+        function updateUI() {
+            document.getElementById('turn-info').innerText = `${players[curIdx].name.toUpperCase()}'S TURN`;
+            document.getElementById('roll-btn').innerText = `ROLL (${rolls} LEFT)`;
+            dice.forEach((v, i) => {
+                const d = document.getElementById(`die-${i}`);
+                d.innerText = v; d.className = kept[i] ? 'die kept' : 'die';
+            });
+
+            players.forEach((p, pIdx) => {
+                let upper = 0;
+                categories.forEach(cat => {
+                    const cell = document.querySelector(`#row-${cat.id} .p${pIdx}-col`);
+                    const fixed = cell.querySelector('.score-fixed');
+                    const preview = cell.querySelector('.score-preview');
+                    
+                    if(p.scores[cat.id] !== undefined) {
+                        fixed.innerText = p.scores[cat.id];
+                        preview.innerText = "";
+                        if(['1s','2s','3s','4s','5s','6s'].includes(cat.id)) upper += p.scores[cat.id];
+                    } else if (pIdx === curIdx && rolls < 3) {
+                        fixed.innerText = "";
+                        preview.innerText = cat.calc(dice);
+                    } else {
+                        fixed.innerText = ""; preview.innerText = "";
+                    }
+                });
+                
+                const bonus = upper >= 63 ? 35 : 0;
+                const total = Object.values(p.scores).reduce((a,b)=>a+b, 0) + p.yzB + bonus;
+                document.getElementById(`total-${pIdx}`).innerText = total;
+                
+                if(pIdx === curIdx) {
+                    document.querySelectorAll('.score-cell').forEach(c => c.classList.remove('active-col'));
+                    document.querySelectorAll(`.p${pIdx}-col`).forEach(c => c.classList.add('active-col'));
+                    document.getElementById('bonus-info').innerHTML = `UPPER SUM: ${upper}/63<br>BONUS: ${bonus}<br>YZ BONUS: ${p.yzB}`;
+                }
+            });
+            document.getElementById('status-msg').innerText = rolls===0 ? "PICK A CATEGORY" : "ROLL OR KEEP DICE";
+        }
+
+        function checkEnd() {
+            if(Object.keys(players[0].scores).length === categories.length) {
+                const winner = [...players].sort((a,b) => (Object.values(b.scores).reduce((x,y)=>x+y,0)+b.yzB) - (Object.values(a.scores).reduce((x,y)=>x+y,0)+a.yzB))[0];
+                document.getElementById('winner-display').innerText = `${winner.name.toUpperCase()} WINS!`;
+                document.getElementById('victory-screen').classList.remove('hidden');
+            }
+        }
+
+        // --- Helpers ---
+        function sumOf(d, v) { return d.filter(x => x === v).length * v; }
+        function sumA(d) { return d.reduce((a,b) => a+b, 0); }
+        function isK(d, n) {
+            const c = {}; d.forEach(x => c[x] = (c[x] || 0) + 1);
+            return Object.values(c).some(v => v >= n);
+        }
+        function isFH(d) {
+            const c = {}; d.forEach(x => c[x] = (c[x] || 0) + 1);
+            const v = Object.values(c); return v.includes(3) && v.includes(2);
+        }
+        function isS(d, len) {
+            const u = [...new Set(d)].sort();
+            let c = 1, m = 1;
+            for(let i=0; i<u.length-1; i++) {
+                if(u[i+1] === u[i]+1) c++; else c = 1;
+                m = Math.max(m, c);
+            }
+            return m >= len;
+        }
+    </script>
+</body>
+</html>
