@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel Yahtzee v0.3</title>
+    <title>Pixel Yahtzee v0.4</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
-            --bg: #121212; --primary: #00ff41; --secondary: #ff00ff;
+            --bg: #0f0f0f; --primary: #00ff41; --secondary: #ff00ff;
             --accent: #ffff00; --text: #fff; --panel: #222;
         }
         body {
@@ -25,109 +25,116 @@
         .btn {
             background: #333; border: 4px solid #fff; color: #fff;
             padding: 12px 20px; margin: 10px; cursor: pointer; font-family: 'Press Start 2P';
+            image-rendering: pixelated;
         }
         .btn:hover:not(:disabled) { background: var(--primary); color: #000; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
         input {
             background: #000; border: 4px solid #fff; color: var(--primary);
             padding: 10px; font-family: 'Press Start 2P'; text-align: center; margin: 5px;
+            font-size: 10px;
         }
 
-        /* --- Lobby Styles --- */
-        .player-slot {
-            border: 4px solid #555; padding: 10px; margin: 5px; width: 250px;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .lobby-dice-container { display: flex; gap: 20px; margin: 30px; }
+        /* --- Lobby Animation --- */
+        .lobby-dice-row { display: flex; gap: 20px; margin: 40px; height: 80px; align-items: center; }
         .lobby-die {
             width: 40px; height: 40px; background: #fff; color: #000;
             display: flex; align-items: center; justify-content: center;
-            font-size: 18px; border: 3px solid #888; cursor: pointer;
-            transition: transform 0.5s;
+            font-size: 18px; border: 3px solid #888;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .spin { transform: rotate(360deg); }
 
-        /* --- Game Layout --- */
+        .player-slot {
+            border: 4px solid #444; padding: 8px; margin: 5px; width: 300px;
+            display: flex; justify-content: space-between; align-items: center;
+            background: #1a1a1a;
+        }
+
+        /* --- Game UI --- */
         #game-container { display: grid; grid-template-columns: 350px 1fr; width: 100vw; height: 100vh; }
-        #sidebar { background: #1a1a1a; border-right: 4px solid #444; padding: 10px; overflow-y: auto; }
+        #sidebar { background: #111; border-right: 4px solid #333; padding: 10px; overflow-y: auto; }
         
         #turn-indicator {
-            font-size: 20px; color: var(--accent); margin-bottom: 20px;
-            padding: 15px; border: 4px double var(--accent);
-            animation: pulse 1.5s infinite; text-align: center;
+            font-size: 18px; color: var(--accent); margin-bottom: 20px;
+            padding: 20px; border: 6px double var(--accent);
+            text-align: center; background: #222;
         }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } }
 
         table { border-collapse: collapse; width: 100%; }
-        th, td { border: 2px solid #444; padding: 8px 4px; text-align: center; font-size: 8px; }
-        .active-col { background: #333; border: 2px solid var(--primary); }
-        .preview { color: #666; opacity: 0; }
+        th, td { border: 2px solid #333; padding: 10px 4px; text-align: center; font-size: 8px; }
+        .active-col { background: #2a2a2a; box-shadow: inset 0 0 10px var(--primary); }
+        .preview { color: #555; opacity: 0; }
         .score-cell:hover .preview { opacity: 1; }
         .fixed { color: var(--primary); }
 
-        #dice-area { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; }
+        #dice-area { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 50px; }
         .dice-row { display: flex; gap: 15px; }
         .die {
-            width: 60px; height: 60px; background: #fff; color: #000;
+            width: 65px; height: 65px; background: #fff; color: #000;
             display: flex; align-items: center; justify-content: center;
-            font-size: 24px; border: 4px solid #888; cursor: pointer;
+            font-size: 28px; border: 4px solid #888; cursor: pointer;
         }
-        .die.kept { background: var(--secondary); color: #fff; transform: translateY(-10px); }
+        .die.kept { background: var(--secondary); color: #fff; transform: translateY(-12px); border-color: #fff; }
         .rolling { animation: flash 0.1s infinite; }
-        @keyframes flash { 0% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes flash { 0% { background: #fff; } 50% { background: #555; } }
         
-        #version-tag { position: fixed; bottom: 5px; right: 10px; font-size: 8px; color: #555; }
+        #version-tag { position: fixed; bottom: 5px; right: 10px; font-size: 8px; color: #444; }
     </style>
 </head>
 <body>
 
-    <div id="version-tag">v0.3</div>
+    <div id="version-tag">v0.4</div>
 
     <div id="start-screen" class="screen">
-        <h1 style="color:var(--primary); font-size: 30px;">PIXEL YAHTZEE</h1>
+        <h1 style="color:var(--primary); font-size: 28px; text-shadow: 4px 4px #000;">PIXEL YAHTZEE</h1>
         <input type="text" id="user-name" placeholder="YOUR NAME" maxlength="8">
         <div>
-            <button class="btn" onclick="initMode('local')">LOCAL PLAY</button>
-            <button class="btn" onclick="initMode('online')">ONLINE PLAY</button>
+            <button class="btn" onclick="initMode('local')">LOCAL MULTI</button>
+            <button class="btn" onclick="initMode('online')">ONLINE P2P</button>
         </div>
     </div>
 
     <div id="lobby-screen" class="screen hidden">
-        <h2 id="lobby-title" style="color:var(--secondary)">WAITING ROOM</h2>
-        <div id="online-id-display" class="hidden">
-            ID: <span id="my-peer-id" style="color:var(--accent)">-</span>
-            <br><small style="font-size:8px">SHARE THIS ID WITH FRIENDS</small>
+        <h2 id="lobby-title" style="color:var(--secondary)">LOBBY ROOM</h2>
+        
+        <div id="online-info" class="hidden">
+            <small>ROOM ID:</small><br>
+            <span id="my-peer-id" style="color:var(--accent); font-size:12px;">-</span>
         </div>
-        <div id="join-area" class="hidden">
-            <input type="text" id="join-id" placeholder="ENTER ROOM ID">
+
+        <div id="join-controls" class="hidden">
+            <input type="text" id="join-id" placeholder="PASTE ID HERE">
             <button class="btn" onclick="joinRoom()">JOIN</button>
         </div>
 
-        <div class="lobby-dice-container">
-            <div class="lobby-die" onclick="this.classList.toggle('spin')">1</div>
-            <div class="lobby-die" onclick="this.classList.toggle('spin')">3</div>
-            <div class="lobby-die" onclick="this.classList.toggle('spin')">6</div>
-            <div class="lobby-die" onclick="this.classList.toggle('spin')">2</div>
+        <div class="lobby-dice-row">
+            <div class="lobby-die">1</div>
+            <div class="lobby-die">2</div>
+            <div class="lobby-die">3</div>
+            <div class="lobby-die">4</div>
+            <div class="lobby-die">5</div>
         </div>
 
         <div id="player-list"></div>
         
-        <div id="lobby-controls">
+        <div id="lobby-actions">
             <button class="btn" id="start-btn" onclick="requestStart()" disabled>START GAME</button>
-            <button class="btn" style="border-color:red" onclick="location.reload()">EXIT</button>
+            <button class="btn" id="add-local-btn" class="hidden" onclick="addLocalPlayer()">ADD BOT/PLAYER</button>
+            <button class="btn" style="border-color:#ff4444" onclick="location.reload()">EXIT</button>
         </div>
     </div>
 
     <div id="game-container" class="hidden">
         <div id="sidebar">
-            <div id="turn-indicator">WAITING...</div>
+            <div id="turn-indicator">WAITING</div>
             <table id="score-table">
                 <thead><tr id="table-head"><th>CAT</th></tr></thead>
                 <tbody id="table-body"></tbody>
             </table>
         </div>
         <div id="dice-area">
-            <div id="status-msg">READY TO ROLL</div>
+            <div id="status-msg" style="color:var(--primary)">YOUR TURN</div>
             <div class="dice-row">
                 <div class="die" id="die-0" onclick="handleDieClick(0)">?</div>
                 <div class="die" id="die-1" onclick="handleDieClick(1)">?</div>
@@ -135,144 +142,121 @@
                 <div class="die" id="die-3" onclick="handleDieClick(3)">?</div>
                 <div class="die" id="die-4" onclick="handleDieClick(4)">?</div>
             </div>
-            <button class="btn" id="roll-btn" onclick="handleRoll()">ROLL (3 LEFT)</button>
+            <button class="btn" id="roll-btn" onclick="handleRoll()" style="font-size:14px; padding:20px;">ROLL (3 LEFT)</button>
         </div>
     </div>
 
     <div id="victory-screen" class="screen hidden">
-        <h1 style="color:var(--primary)">GAME OVER</h1>
-        <h2 id="winner-name" style="color:var(--accent)">-</h2>
-        <button class="btn" onclick="location.reload()">BACK TO MENU</button>
+        <h1 style="color:var(--primary)">VICTORY!</h1>
+        <h2 id="winner-name" style="color:var(--accent); font-size:24px;">-</h2>
+        <button class="btn" onclick="location.reload()">PLAY AGAIN</button>
     </div>
 
     <script>
         const categories = [
-            { id: '1s', name: '1s', calc: d => sumV(d,1) },
-            { id: '2s', name: '2s', calc: d => sumV(d,2) },
-            { id: '3s', name: '3s', calc: d => sumV(d,3) },
-            { id: '4s', name: '4s', calc: d => sumV(d,4) },
-            { id: '5s', name: '5s', calc: d => sumV(d,5) },
-            { id: '6s', name: '6s', calc: d => sumV(d,6) },
-            { id: '3k', name: '3K', calc: d => isK(d,3)?sumA(d):0 },
-            { id: '4k', name: '4K', calc: d => isK(d,4)?sumA(d):0 },
-            { id: 'fh', name: 'FH', calc: d => isFH(d)?sumA(d):0, sp: 25 },
-            { id: 'ss', name: 'SS', calc: d => isS(d,4)?15:0, sp: 30 },
-            { id: 'ls', name: 'LS', calc: d => isS(d,5)?30:0, sp: 40 },
-            { id: 'ch', name: 'CH', calc: d => sumA(d) },
+            { id: '1s', name: '1s', calc: d => sumV(d,1) }, { id: '2s', name: '2s', calc: d => sumV(d,2) },
+            { id: '3s', name: '3s', calc: d => sumV(d,3) }, { id: '4s', name: '4s', calc: d => sumV(d,4) },
+            { id: '5s', name: '5s', calc: d => sumV(d,5) }, { id: '6s', name: '6s', calc: d => sumV(d,6) },
+            { id: '3k', name: '3K', calc: d => isK(d,3)?sumA(d):0 }, { id: '4k', name: '4K', calc: d => isK(d,4)?sumA(d):0 },
+            { id: 'fh', name: 'FH', calc: d => isFH(d)?sumA(d):0, sp: 25 }, { id: 'ss', name: 'SS', calc: d => isS(d,4)?15:0, sp: 30 },
+            { id: 'ls', name: 'LS', calc: d => isS(d,5)?30:0, sp: 40 }, { id: 'ch', name: 'CH', calc: d => sumA(d) },
             { id: 'yz', name: 'YZ', calc: d => isK(d,5)?50:0 }
         ];
 
         let players = [];
-        let curIdx = 0;
-        let rolls = 3;
-        let dice = [1,1,1,1,1];
-        let kept = [false,false,false,false,false];
-        let rolling = false;
-        
-        let isHost = false;
-        let myId = ""; // Peer ID
-        let myLocalIdx = -1;
-        let peer = null;
-        let conns = []; // Host: multiple connections, Client: one connection
+        let curIdx = 0, rolls = 3, dice = [1,1,1,1,1], kept = Array(5).fill(false), rolling = false;
+        let isHost = false, myPeerIdx = -1, peer = null, conns = [], mode = "";
 
-        // --- Initialization ---
-        function initMode(mode) {
-            const name = document.getElementById('user-name').value || "PLAYER";
+        // --- Lobby Dice Animation ---
+        setInterval(() => {
+            const ldice = document.querySelectorAll('.lobby-die');
+            ldice.forEach(d => {
+                d.innerText = Math.floor(Math.random()*6)+1;
+                const rot = Math.floor(Math.random()*40) - 20;
+                const scale = 0.8 + Math.random()*0.4;
+                d.style.transform = `rotate(${rot}deg) scale(${scale})`;
+            });
+        }, 300);
+
+        function initMode(m) {
+            mode = m;
+            const name = document.getElementById('user-name').value || "PLAYER 1";
             document.getElementById('start-screen').classList.add('hidden');
             document.getElementById('lobby-screen').classList.remove('hidden');
 
             if(mode === 'local') {
                 isHost = true;
-                myLocalIdx = 0;
+                myPeerIdx = 0;
                 players = [{name: name, scores: {}, yzB: 0, isLocal: true}];
-                updateLobbyUI();
+                document.getElementById('add-local-btn').classList.remove('hidden');
                 document.getElementById('start-btn').disabled = false;
-                addLocalPlayerButton();
+                updateLobbyUI();
             } else {
                 initPeer(name);
             }
         }
 
-        function addLocalPlayerButton() {
-            const ctrl = document.getElementById('lobby-controls');
-            const b = document.createElement('button');
-            b.className = 'btn';
-            b.innerText = 'ADD LOCAL PLAYER';
-            b.onclick = () => {
-                if(players.length < 4) {
-                    players.push({name: "P" + (players.length+1), scores: {}, yzB: 0, isLocal: true});
-                    updateLobbyUI();
-                }
-            };
-            ctrl.appendChild(b);
+        function addLocalPlayer() {
+            if(players.length < 4) {
+                players.push({name: "PLAYER "+(players.length+1), scores: {}, yzB: 0, isLocal: true});
+                updateLobbyUI();
+            }
         }
 
         // --- PeerJS Logic ---
         function initPeer(name) {
             peer = new Peer();
             peer.on('open', id => {
-                myId = id;
                 document.getElementById('my-peer-id').innerText = id;
-                document.getElementById('online-id-display').classList.remove('hidden');
-                document.getElementById('join-area').classList.remove('hidden');
-                isHost = true; 
-                myLocalIdx = 0;
-                players = [{name: name, id: id, scores: {}, yzB: 0}];
+                document.getElementById('online-info').classList.remove('hidden');
+                document.getElementById('join-controls').classList.remove('hidden');
+                isHost = true; myPeerIdx = 0;
+                players = [{name: name, id: id, scores: {}, yzB: 0, isLocal: false}];
                 updateLobbyUI();
             });
-
             peer.on('connection', c => {
-                if(players.length >= 4) { c.on('open', () => c.send({type:'ERROR', msg:'ROOM FULL'})); return; }
+                // Prevent duplicate IDs or Room Full
+                if(players.length >= 4 || players.find(p => p.id === c.peer)) {
+                    c.on('open', () => c.send({type:'REJECT', msg:'Full or Duplicate'}));
+                    return;
+                }
                 conns.push(c);
                 c.on('data', data => handleData(data, c));
-                c.on('close', () => removePlayer(c.peer));
+                c.on('close', () => { players = players.filter(p => p.id !== c.peer); updateLobbyUI(); broadcast({type:'SYNC', players}); });
             });
         }
 
         function joinRoom() {
             const rid = document.getElementById('join-id').value;
             const c = peer.connect(rid);
-            conns = [c];
-            isHost = false;
-            c.on('open', () => {
-                c.send({type: 'JOIN', name: document.getElementById('user-name').value || "GUEST"});
-            });
+            conns = [c]; isHost = false;
+            c.on('open', () => c.send({type:'JOIN', name: document.getElementById('user-name').value || "GUEST"}));
             c.on('data', data => handleData(data, c));
         }
 
         function handleData(data, conn) {
             if(data.type === 'JOIN' && isHost) {
-                players.push({name: data.name, id: conn.peer, scores: {}, yzB: 0});
-                broadcast({type: 'SYNC_LOBBY', players});
-                updateLobbyUI();
+                players.push({name: data.name, id: conn.peer, scores: {}, yzB: 0, isLocal: false});
+                updateLobbyUI(); broadcast({type:'SYNC', players});
             }
-            if(data.type === 'SYNC_LOBBY') {
+            if(data.type === 'SYNC') {
                 players = data.players;
-                myLocalIdx = players.findIndex(p => p.id === peer.id);
+                myPeerIdx = players.findIndex(p => p.id === peer.id);
                 updateLobbyUI();
             }
-            if(data.type === 'UPDATE_NAME' && isHost) {
+            if(data.type === 'NAME_CHANGE' && isHost) {
                 const p = players.find(x => x.id === conn.peer);
                 if(p) p.name = data.name;
-                broadcast({type: 'SYNC_LOBBY', players});
-                updateLobbyUI();
+                broadcast({type:'SYNC', players}); updateLobbyUI();
             }
-            if(data.type === 'START') {
-                startActualGame();
-            }
-            if(data.type === 'GAME_STATE') {
-                players = data.players;
-                curIdx = data.curIdx;
-                rolls = data.rolls;
-                dice = data.dice;
-                kept = data.kept;
+            if(data.type === 'START_GAME') { runStart(); }
+            if(data.type === 'UPDATE_GAME') {
+                players = data.players; curIdx = data.curIdx; rolls = data.rolls; dice = data.dice; kept = data.kept;
                 updateGameUI();
             }
         }
 
-        function broadcast(msg) {
-            conns.forEach(c => c.send(msg));
-        }
+        function broadcast(msg) { conns.forEach(c => c.send(msg)); }
 
         // --- Lobby UI ---
         function updateLobbyUI() {
@@ -281,172 +265,141 @@
             players.forEach((p, i) => {
                 const div = document.createElement('div');
                 div.className = 'player-slot';
-                const nameDisplay = (i === myLocalIdx) ? 
-                    `<input type="text" value="${p.name}" onchange="changeMyName(this.value)" style="width:100px">` : 
-                    `<span>${p.name}</span>`;
+                // Only allow editing if it's YOUR slot OR it's a LOCAL player and you are HOST
+                const canEdit = (i === myPeerIdx) || (mode === 'local' && isHost);
+                const nameDisplay = canEdit ? 
+                    `<input type="text" value="${p.name}" onchange="changeName(${i}, this.value)" style="width:120px; border-width:2px;">` : 
+                    `<span style="color:var(--primary)">${p.name}</span>`;
                 div.innerHTML = `${nameDisplay} <span>${i===0?'HOST':'READY'}</span>`;
                 list.appendChild(div);
             });
             if(isHost) document.getElementById('start-btn').disabled = players.length < 1;
         }
 
-        function changeMyName(val) {
-            players[myLocalIdx].name = val;
-            if(isHost) { broadcast({type: 'SYNC_LOBBY', players}); updateLobbyUI(); }
-            else { conns[0].send({type: 'UPDATE_NAME', name: val}); }
+        function changeName(idx, val) {
+            players[idx].name = val;
+            if(isHost) { broadcast({type:'SYNC', players}); updateLobbyUI(); }
+            else { conns[0].send({type:'NAME_CHANGE', name: val}); }
         }
 
-        function requestStart() {
-            if(!isHost) return;
-            broadcast({type: 'START'});
-            startActualGame();
-        }
+        function requestStart() { if(isHost) { broadcast({type:'START_GAME'}); runStart(); } }
 
-        function startActualGame() {
+        function runStart() {
             document.getElementById('lobby-screen').classList.add('hidden');
             document.getElementById('game-container').classList.remove('hidden');
-            renderTable();
-            updateGameUI();
+            initTable(); updateGameUI();
         }
 
-        // --- Game Core ---
-        function renderTable() {
+        // --- Game Logic ---
+        function initTable() {
             const head = document.getElementById('table-head');
             head.innerHTML = '<th>CAT</th>';
-            players.forEach(p => head.innerHTML += `<th>${p.name.substring(0,5)}</th>`);
-            
+            players.forEach(p => head.innerHTML += `<th class="p${players.indexOf(p)}-col">${p.name.substring(0,5)}</th>`);
             const body = document.getElementById('table-body');
             body.innerHTML = '';
             categories.forEach(cat => {
-                let row = `<tr><td style="text-align:left">${cat.name}</td>`;
+                let row = `<tr id="r-${cat.id}"><td style="text-align:left; color:#888">${cat.name}</td>`;
                 players.forEach((_, i) => {
-                    row += `<td class="score-cell p${i}-col" onclick="pickScore('${cat.id}', ${i})">
-                        <span class="fixed"></span><span class="preview"></span>
-                    </td>`;
+                    row += `<td class="score-cell p${i}-col" onclick="applyScore('${cat.id}', ${i})"><span class="fixed"></span><span class="preview"></span></td>`;
                 });
                 body.innerHTML += row + '</tr>';
             });
         }
 
         function handleRoll() {
-            if(rolling || rolls <= 0 || myLocalIdx !== curIdx) return;
+            if(rolling || rolls <= 0 || (mode === 'online' && myPeerIdx !== curIdx)) return;
             rolling = true; rolls--;
             document.querySelectorAll('.die').forEach((d,i) => { if(!kept[i]) d.classList.add('rolling'); });
-            
             setTimeout(() => {
                 dice = dice.map((v, i) => kept[i] ? v : Math.floor(Math.random()*6)+1);
-                rolling = false;
-                syncAndUI();
+                rolling = false; syncState();
             }, 600);
         }
 
         function handleDieClick(i) {
-            if(rolling || rolls === 3 || myLocalIdx !== curIdx) return;
-            kept[i] = !kept[i];
-            syncAndUI();
+            if(rolling || rolls === 3 || (mode === 'online' && myPeerIdx !== curIdx)) return;
+            kept[i] = !kept[i]; syncState();
         }
 
-        function pickScore(catId, pIdx) {
-            if(pIdx !== curIdx || myLocalIdx !== curIdx || rolling || rolls === 3) return;
+        function applyScore(catId, pIdx) {
+            if(pIdx !== curIdx || (mode === 'online' && myPeerIdx !== curIdx) || rolling || rolls === 3) return;
             const p = players[curIdx];
             if(p.scores[catId] !== undefined) return;
 
             const cat = categories.find(c => c.id === catId);
             let score = cat.calc(dice);
-
-            if(isK(dice, 5) && p.scores['yz'] >= 50) {
-                p.yzB += 100;
-                if(cat.sp) score = cat.sp;
-            }
+            if(isK(dice, 5) && p.scores['yz'] >= 50) { p.yzB += 100; if(cat.sp) score = cat.sp; }
 
             p.scores[catId] = score;
             curIdx = (curIdx + 1) % players.length;
             rolls = 3; kept = Array(5).fill(false); dice = Array(5).fill(1);
-            syncAndUI();
-            checkVictory();
+            syncState(); checkEnd();
         }
 
-        function syncAndUI() {
-            if(isHost) broadcast({type: 'GAME_STATE', players, curIdx, rolls, dice, kept});
-            else conns[0].send({type: 'GAME_STATE', players, curIdx, rolls, dice, kept});
+        function syncState() {
+            if(isHost) broadcast({type:'UPDATE_GAME', players, curIdx, rolls, dice, kept});
+            else if(mode==='online') conns[0].send({type:'UPDATE_GAME', players, curIdx, rolls, dice, kept});
             updateGameUI();
         }
 
         function updateGameUI() {
-            const currentP = players[curIdx];
-            const indicator = document.getElementById('turn-indicator');
-            indicator.innerText = (myLocalIdx === curIdx) ? "YOUR TURN!" : `${currentP.name.toUpperCase()}'S TURN`;
-            indicator.style.color = (myLocalIdx === curIdx) ? "var(--primary)" : "var(--accent)";
-
+            const p = players[curIdx];
+            const ind = document.getElementById('turn-indicator');
+            const isMyTurn = (mode === 'local') ? true : (myPeerIdx === curIdx);
+            
+            ind.innerText = isMyTurn ? "YOUR TURN" : `${p.name.toUpperCase()}'S TURN`;
+            ind.style.borderColor = isMyTurn ? "var(--primary)" : "var(--secondary)";
+            ind.style.color = isMyTurn ? "var(--primary)" : "var(--secondary)";
+            
             document.getElementById('roll-btn').innerText = `ROLL (${rolls} LEFT)`;
-            document.getElementById('roll-btn').disabled = (myLocalIdx !== curIdx || rolls === 0);
+            document.getElementById('roll-btn').disabled = !isMyTurn || rolls === 0;
 
             dice.forEach((v, i) => {
                 const d = document.getElementById(`die-${i}`);
-                d.innerText = v;
-                d.className = kept[i] ? 'die kept' : 'die';
+                d.innerText = v; d.className = kept[i] ? 'die kept' : 'die';
                 if(rolling && !kept[i]) d.classList.add('rolling');
             });
 
-            players.forEach((p, pIdx) => {
-                let upperSum = 0;
+            players.forEach((player, pIdx) => {
                 categories.forEach(cat => {
-                    const cell = document.querySelector(`.p${pIdx}-col`, `#row-${cat.id}`); // This is wrong selector but let's fix:
-                    const rowCells = document.querySelectorAll(`tr`)[categories.indexOf(cat)+1].querySelectorAll('td');
-                    const targetCell = rowCells[pIdx+1];
-                    const fixed = targetCell.querySelector('.fixed');
-                    const preview = targetCell.querySelector('.preview');
+                    const row = document.getElementById(`r-${cat.id}`);
+                    const cell = row.querySelectorAll('.score-cell')[pIdx];
+                    const fixed = cell.querySelector('.fixed');
+                    const preview = cell.querySelector('.preview');
 
-                    if(p.scores[cat.id] !== undefined) {
-                        fixed.innerText = p.scores[cat.id];
-                        preview.innerText = "";
-                        if(cat.id.includes('s') && !cat.id.includes('k')) upperSum += p.scores[cat.id];
+                    if(player.scores[cat.id] !== undefined) {
+                        fixed.innerText = player.scores[cat.id]; preview.innerText = "";
                     } else if (pIdx === curIdx && rolls < 3) {
-                        fixed.innerText = "";
-                        preview.innerText = cat.calc(dice);
-                    } else {
-                        fixed.innerText = ""; preview.innerText = "";
-                    }
-                });
-                // Highlight active column
-                document.querySelectorAll(`.p${pIdx}-col`).forEach(c => {
-                    if(pIdx === curIdx) c.classList.add('active-col');
-                    else c.classList.remove('active-col');
+                        fixed.innerText = ""; preview.innerText = cat.calc(dice);
+                    } else { fixed.innerText = ""; preview.innerText = ""; }
+                    
+                    if(pIdx === curIdx) cell.classList.add('active-col');
+                    else cell.classList.remove('active-col');
                 });
             });
         }
 
-        function checkVictory() {
-            const finished = Object.keys(players[0].scores).length === categories.length;
-            if(finished) {
-                let winner = players[0];
+        function checkEnd() {
+            const totalSlots = categories.length;
+            if(Object.keys(players[0].scores).length === totalSlots) {
+                let win = players[0];
                 players.forEach(p => {
-                    const total = Object.values(p.scores).reduce((a,b)=>a+b, 0) + p.yzB;
-                    if(total > (Object.values(winner.scores).reduce((a,b)=>a+b,0)+winner.yzB)) winner = p;
+                    const s1 = Object.values(p.scores).reduce((a,b)=>a+b,0)+p.yzB;
+                    const s2 = Object.values(win.scores).reduce((a,b)=>a+b,0)+win.yzB;
+                    if(s1 > s2) win = p;
                 });
-                document.getElementById('winner-name').innerText = `${winner.name} WINS!`;
+                document.getElementById('winner-name').innerText = `${win.name} WINS!`;
                 document.getElementById('victory-screen').classList.remove('hidden');
             }
         }
 
-        // --- Math Helpers ---
         function sumV(d, v) { return d.filter(x => x === v).length * v; }
         function sumA(d) { return d.reduce((a,b) => a+b, 0); }
-        function isK(d, n) {
-            const c = {}; d.forEach(x => c[x] = (c[x] || 0) + 1);
-            return Object.values(c).some(v => v >= n);
-        }
-        function isFH(d) {
-            const c = {}; d.forEach(x => c[x] = (c[x] || 0) + 1);
-            const v = Object.values(c); return v.includes(3) && v.includes(2);
-        }
+        function isK(d, n) { const c = {}; d.forEach(x => c[x] = (c[x] || 0) + 1); return Object.values(c).some(v => v >= n); }
+        function isFH(d) { const c = {}; d.forEach(x => c[x] = (c[x] || 0) + 1); const v = Object.values(c); return v.includes(3) && v.includes(2); }
         function isS(d, len) {
-            const u = [...new Set(d)].sort();
-            let c = 1, m = 1;
-            for(let i=0; i<u.length-1; i++) {
-                if(u[i+1] === u[i]+1) c++; else c = 1;
-                m = Math.max(m, c);
-            }
+            const u = [...new Set(d)].sort(); let c = 1, m = 1;
+            for(let i=0; i<u.length-1; i++) { if(u[i+1] === u[i]+1) c++; else c = 1; m = Math.max(m, c); }
             return m >= len;
         }
     </script>
