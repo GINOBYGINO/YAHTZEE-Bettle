@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel Yahtzee v0.5</title>
+    <title>Pixel Yahtzee v0.6</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -34,8 +34,13 @@
             padding: 10px; font-family: 'Press Start 2P'; text-align: center; margin: 5px;
         }
 
+        /* --- Network Status --- */
+        #net-status { font-size: 8px; margin: 10px; display: flex; align-items: center; gap: 5px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4444; }
+        .dot.online { background: var(--primary); box-shadow: 0 0 10px var(--primary); }
+
         /* --- Lobby Dice --- */
-        .lobby-dice-row { display: flex; gap: 20px; margin: 40px; }
+        .lobby-dice-row { display: flex; gap: 20px; margin: 30px; }
         .lobby-die {
             width: 45px; height: 45px; background: #fff; color: #000;
             display: flex; align-items: center; justify-content: center;
@@ -44,28 +49,17 @@
         }
 
         .player-slot {
-            border: 4px solid var(--border); padding: 10px; margin: 5px; width: 380px;
+            border: 4px solid var(--border); padding: 10px; margin: 5px; width: 400px;
             display: flex; justify-content: space-between; align-items: center;
             background: #151515;
         }
-        .kick-btn {
-            background: #aa0000; color: #fff; border: 2px solid #fff;
-            font-size: 8px; padding: 4px; cursor: pointer; font-family: 'Press Start 2P';
-        }
+        .kick-btn { background: #aa0000; color: #fff; border: 2px solid #fff; font-size: 8px; padding: 4px; cursor: pointer; }
 
-        /* --- Game Layout --- */
-        #game-container { 
-            display: grid; 
-            grid-template-columns: 450px 1fr; /* 擴大左側記分板 */
-            width: 100vw; height: 100vh; 
-        }
+        /* --- Game Area --- */
+        #game-container { display: grid; grid-template-columns: 450px 1fr; width: 100vw; height: 100vh; }
         #sidebar { background: #111; border-right: 4px solid var(--border); padding: 15px; overflow-y: auto; }
+        #turn-indicator { font-size: 16px; color: var(--accent); margin-bottom: 20px; padding: 15px; border: 4px double var(--accent); text-align: center; }
         
-        #turn-indicator {
-            font-size: 16px; color: var(--accent); margin-bottom: 20px;
-            padding: 15px; border: 4px double var(--accent); text-align: center;
-        }
-
         table { border-collapse: collapse; width: 100%; }
         th, td { border: 2px solid #333; padding: 12px 4px; text-align: center; font-size: 9px; }
         .active-col { background: #222; border: 2px solid var(--primary); }
@@ -75,21 +69,18 @@
 
         #dice-area { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; }
         .dice-row { display: flex; gap: 15px; }
-        .die {
-            width: 70px; height: 70px; background: #fff; color: #000;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 30px; border: 4px solid #888; cursor: pointer;
-        }
+        .die { width: 70px; height: 70px; background: #fff; color: #000; display: flex; align-items: center; justify-content: center; font-size: 30px; border: 4px solid #888; cursor: pointer; }
         .die.kept { background: var(--secondary); color: #fff; transform: translateY(-10px); }
         .rolling { animation: flash 0.1s infinite; }
         @keyframes flash { 0% { background: #fff; } 50% { background: #777; } }
         
         #version-tag { position: fixed; bottom: 8px; right: 12px; font-size: 10px; color: #666; z-index: 300;}
+        .error-msg { color: #ff4444; font-size: 8px; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <div id="version-tag">v0.5</div>
+    <div id="version-tag">v0.6</div>
 
     <div id="start-screen" class="screen">
         <h1 style="color:var(--primary); font-size: 30px;">PIXEL YAHTZEE</h1>
@@ -103,14 +94,23 @@
     <div id="lobby-screen" class="screen hidden">
         <h2 id="lobby-title" style="color:var(--secondary)">WAITING ROOM</h2>
         
-        <div id="online-id-area" class="hidden">
-            <span style="font-size:8px">ROOM ID:</span><br>
-            <span id="my-peer-id" style="color:var(--accent); font-size:12px;">-</span>
+        <div id="net-status">
+            <div id="status-dot" class="dot"></div>
+            <span id="status-text">CONNECTING TO BROKER...</span>
         </div>
 
-        <div id="join-controls" class="hidden" style="margin-top:10px">
-            <input type="text" id="join-id" placeholder="ENTER ROOM ID">
+        <div id="online-id-area" class="hidden">
+            <span style="font-size:8px">YOUR ROOM ID (SHARE THIS):</span><br>
+            <div style="margin:10px">
+                <span id="my-peer-id" style="color:var(--accent); font-size:12px; border:2px dashed #555; padding:5px;">-</span>
+                <button class="btn" style="padding:5px; font-size:8px; margin:0" onclick="copyId()">COPY</button>
+            </div>
+        </div>
+
+        <div id="join-controls" class="hidden">
+            <input type="text" id="join-id" placeholder="ENTER FRIEND ID">
             <button class="btn" onclick="joinRoom()">JOIN</button>
+            <div id="err-log" class="error-msg"></div>
         </div>
 
         <div class="lobby-dice-row">
@@ -172,10 +172,15 @@
         let curIdx = 0, rolls = 3, dice = [1,1,1,1,1], kept = Array(5).fill(false), rolling = false;
         let isHost = false, myIdx = -1, peer = null, conns = [], mode = "";
 
-        // --- Lobby Dice Logic ---
         function rollLobbyDie(el) {
             el.innerText = Math.floor(Math.random()*6)+1;
             el.style.transform = `rotate(${Math.floor(Math.random()*60)-30}deg)`;
+        }
+
+        function copyId() {
+            const id = document.getElementById('my-peer-id').innerText;
+            navigator.clipboard.writeText(id);
+            alert("ID COPIED!");
         }
 
         function initMode(m) {
@@ -189,9 +194,10 @@
                 players = [{name: name, scores: {}, yzB: 0, isLocal: true}];
                 document.getElementById('add-local-btn').classList.remove('hidden');
                 document.getElementById('start-btn').disabled = false;
+                document.getElementById('net-status').classList.add('hidden');
                 updateLobbyUI();
             } else {
-                document.getElementById('add-local-btn').classList.add('hidden'); // 線上模式隱藏增加玩家
+                document.getElementById('add-local-btn').classList.add('hidden');
                 initPeer(name);
             }
         }
@@ -203,10 +209,21 @@
             }
         }
 
-        // --- PeerJS Logic ---
+        // --- PeerJS Enhanced Config ---
         function initPeer(name) {
-            peer = new Peer();
+            // 加入 Google STUN 伺服器幫助穿透防火牆
+            peer = new Peer({
+                config: {
+                    'iceServers': [
+                        { url: 'stun:stun.l.google.com:19302' },
+                        { url: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
+            });
+
             peer.on('open', id => {
+                document.getElementById('status-dot').classList.add('online');
+                document.getElementById('status-text').innerText = "ONLINE (SERVER CONNECTED)";
                 document.getElementById('my-peer-id').innerText = id;
                 document.getElementById('online-id-area').classList.remove('hidden');
                 document.getElementById('join-controls').classList.remove('hidden');
@@ -214,10 +231,14 @@
                 players = [{name: name, id: id, scores: {}, yzB: 0}];
                 updateLobbyUI();
             });
+
+            peer.on('error', err => {
+                document.getElementById('err-log').innerText = "PEER ERROR: " + err.type;
+                console.error(err);
+            });
+
             peer.on('connection', c => {
-                if(players.length >= 4 || players.find(p => p.id === c.peer)) {
-                    c.on('open', () => c.send({type:'REJECT'})); return;
-                }
+                if(players.length >= 4) { c.on('open', () => c.send({type:'REJECT'})); return; }
                 conns.push(c);
                 c.on('data', data => handleData(data, c));
                 c.on('close', () => {
@@ -230,10 +251,16 @@
 
         function joinRoom() {
             const rid = document.getElementById('join-id').value;
-            const c = peer.connect(rid);
+            if(!rid) return;
+            document.getElementById('err-log').innerText = "JOINING...";
+            const c = peer.connect(rid, { reliable: true });
             conns = [c]; isHost = false;
-            c.on('open', () => c.send({type:'JOIN', name: document.getElementById('user-name').value || "GUEST"}));
+            c.on('open', () => {
+                document.getElementById('err-log').innerText = "CONNECTED! WAITING FOR SYNC...";
+                c.send({type:'JOIN', name: document.getElementById('user-name').value || "GUEST"});
+            });
             c.on('data', data => handleData(data, c));
+            c.on('error', err => { document.getElementById('err-log').innerText = "CONN ERROR: " + err; });
         }
 
         function kickPlayer(pId) {
@@ -265,12 +292,10 @@
                 players = data.players; curIdx = data.curIdx; rolls = data.rolls; dice = data.dice; kept = data.kept;
                 updateGameUI();
             }
-            if(data.type === 'REJECT') { alert("Room full or duplicate ID"); location.reload(); }
         }
 
         function broadcast(msg) { conns.forEach(c => c.send(msg)); }
 
-        // --- UI ---
         function updateLobbyUI() {
             const list = document.getElementById('player-list');
             list.innerHTML = "";
@@ -278,15 +303,8 @@
                 const div = document.createElement('div');
                 div.className = 'player-slot';
                 const canEdit = (i === myIdx) || (mode === 'local');
-                const nameTag = canEdit ? 
-                    `<input type="text" value="${p.name}" onchange="changeName(${i}, this.value)" style="width:120px; font-size:8px">` : 
-                    `<span>${p.name}</span>`;
-                
-                let kickBtn = "";
-                if(isHost && i !== 0 && !p.isLocal) {
-                    kickBtn = `<button class="kick-btn" onclick="kickPlayer('${p.id}')">KICK</button>`;
-                }
-                
+                const nameTag = canEdit ? `<input type="text" value="${p.name}" onchange="changeName(${i}, this.value)" style="width:120px; font-size:8px">` : `<span>${p.name}</span>`;
+                let kickBtn = (isHost && i !== 0 && !p.isLocal) ? `<button class="kick-btn" onclick="kickPlayer('${p.id}')">KICK</button>` : "";
                 div.innerHTML = `${nameTag} <div>${i===0?'[HOST]':''} ${kickBtn}</div>`;
                 list.appendChild(div);
             });
@@ -315,9 +333,7 @@
             body.innerHTML = '';
             categories.forEach(cat => {
                 let row = `<tr id="r-${cat.id}"><td style="text-align:left; color:#aaa; font-size:7px">${cat.name}</td>`;
-                players.forEach((_, i) => {
-                    row += `<td class="score-cell p${i}-col" onclick="applyScore('${cat.id}', ${i})"><span class="fixed"></span><span class="preview"></span></td>`;
-                });
+                players.forEach((_, i) => { row += `<td class="score-cell p${i}-col" onclick="applyScore('${cat.id}', ${i})"><span class="fixed"></span><span class="preview"></span></td>`; });
                 body.innerHTML += row + '</tr>';
             });
         }
@@ -341,11 +357,9 @@
             if(pIdx !== curIdx || (mode === 'online' && myIdx !== curIdx) || rolling || rolls === 3) return;
             const p = players[curIdx];
             if(p.scores[catId] !== undefined) return;
-
             const cat = categories.find(c => c.id === catId);
             let score = cat.calc(dice);
             if(isK(dice, 5) && p.scores['yz'] >= 50) { p.yzB += 100; if(cat.sp) score = cat.sp; }
-
             p.scores[catId] = score;
             curIdx = (curIdx + 1) % players.length;
             rolls = 3; kept = Array(5).fill(false); dice = Array(5).fill(1);
@@ -365,30 +379,23 @@
             ind.innerText = isMe ? "YOUR TURN" : `${p.name.toUpperCase()}'S TURN`;
             ind.style.color = isMe ? "var(--primary)" : "var(--secondary)";
             ind.style.borderColor = isMe ? "var(--primary)" : "var(--secondary)";
-            
             document.getElementById('roll-btn').innerText = `ROLL (${rolls} LEFT)`;
             document.getElementById('roll-btn').disabled = !isMe || rolls === 0;
-
             dice.forEach((v, i) => {
                 const d = document.getElementById(`die-${i}`);
                 d.innerText = v; d.className = kept[i] ? 'die kept' : 'die';
                 if(rolling && !kept[i]) d.classList.add('rolling');
             });
-
             players.forEach((player, pIdx) => {
                 categories.forEach(cat => {
                     const row = document.getElementById(`r-${cat.id}`);
                     const cell = row.querySelectorAll('.score-cell')[pIdx];
                     const fixed = cell.querySelector('.fixed');
                     const preview = cell.querySelector('.preview');
-                    if(player.scores[cat.id] !== undefined) {
-                        fixed.innerText = player.scores[cat.id]; preview.innerText = "";
-                    } else if (pIdx === curIdx && rolls < 3) {
-                        fixed.innerText = ""; preview.innerText = cat.calc(dice);
-                    } else { fixed.innerText = ""; preview.innerText = ""; }
-                    
-                    if(pIdx === curIdx) cell.classList.add('active-col');
-                    else cell.classList.remove('active-col');
+                    if(player.scores[cat.id] !== undefined) { fixed.innerText = player.scores[cat.id]; preview.innerText = ""; }
+                    else if (pIdx === curIdx && rolls < 3) { fixed.innerText = ""; preview.innerText = cat.calc(dice); }
+                    else { fixed.innerText = ""; preview.innerText = ""; }
+                    if(pIdx === curIdx) cell.classList.add('active-col'); else cell.classList.remove('active-col');
                 });
             });
         }
@@ -410,11 +417,7 @@
         function sumA(d) { return d.reduce((a,b) => a+b, 0); }
         function isK(d, n) { const c = {}; d.forEach(x => c[x] = (c[x] || 0) + 1); return Object.values(c).some(v => v >= n); }
         function isFH(d) { const c = {}; d.forEach(x => c[x] = (c[x] || 0) + 1); const v = Object.values(c); return v.includes(3) && v.includes(2); }
-        function isS(d, len) {
-            const u = [...new Set(d)].sort(); let c = 1, m = 1;
-            for(let i=0; i<u.length-1; i++) { if(u[i+1] === u[i]+1) c++; else c = 1; m = Math.max(m, c); }
-            return m >= len;
-        }
+        function isS(d, len) { const u = [...new Set(d)].sort(); let c = 1, m = 1; for(let i=0; i<u.length-1; i++) { if(u[i+1] === u[i]+1) c++; else c = 1; m = Math.max(m, c); } return m >= len; }
     </script>
 </body>
 </html>
