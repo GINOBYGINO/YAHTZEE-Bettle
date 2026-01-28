@@ -1,23 +1,23 @@
 
-## 🎲 Pixel Yahtzee v0.7
+##  Pixel Yahtzee v0.7
 
 一個基於像素風格、支援遠端連線 (P2P) 的經典 Yahtzee 骰子遊戲。
 
-### 🚀 版本 v0.7 更新亮點
+###  版本 v0.7 更新亮點
 
 * **動態計分系統**：表格下方新增實時總分 (Total) 與排名 (Rank) 計算。
 * **結算畫面優化**：遊戲結束時，計分板會保留在背景，並以半透明覆蓋層顯示最終排名，方便玩家對帳。
 * **行動裝置適配**：針對手機螢幕進行佈局優化，採上下分欄設計並縮放骰子尺寸。
 * **加寬記分板**：側邊欄空間擴大，提升閱讀性與操作精確度。
 
-### 🛠 技術棧
+###  技術棧
 
 * **Frontend**: HTML5, CSS3 (Flexbox/Grid), Vanilla JavaScript.
 * **Font**: Press Start 2P (Google Fonts).
 * **Networking**: PeerJS (WebRTC) - 提供瀏覽器對瀏覽器的點對點連線。
 * **Icons**: Pure CSS/Text-based Pixel Art.
 
-### 🕹 如何開始
+###  如何開始
 
 1. **開啟遊戲**：直接以瀏覽器開啟 `index.html`。
 2. **本地模式**：點擊 "LOCAL MULTI"，可手動新增多個玩家進行同台裝置遊玩。
